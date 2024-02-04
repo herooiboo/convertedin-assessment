@@ -1,0 +1,50 @@
+on:
+  push:
+    branches:
+      - main
+
+name: Laravel CI
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: laravel
+          MYSQL_ROOT_PASSWORD: root
+          DB_PORT: ${{ job.services.mysql.ports[3306] }}
+        ports:
+          - 33306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          php --version
+          composer install -q --no-ansi --no-interaction --no-scripts --no-suggest --no-progress --prefer-dist
+          chmod -R 777 storage bootstrap/cache
+
+      - name: Boot Laravel application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan --version
+
+      - name: Execute PHPUnit tests
+        env:
+          DB_CONNECTION: mysql
+          DB_DATABASE: laravel
+          DB_PORT: 33306
+          DB_USER: test
+          DB_PASSWORD: test
+        run: |
+          php artisan migrate:fresh --seed
+          php artisan test --testsuite=Unit
